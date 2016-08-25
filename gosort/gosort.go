@@ -29,7 +29,7 @@ func main() {
 	ch := make(chan int)
 
 	sli := []int{1, 12, 2, 8, 4, 5, 8, 19, 13, 12, 2, 8, 4, 5, 8, 19}
-	sli2 := make([]int, len(sli))
+	sli2 := sli
 
 	for base, _ := range sli {
 		go sort(ch, sli, base, sli2)
