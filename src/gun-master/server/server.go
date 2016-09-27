@@ -1,27 +1,28 @@
 package server
 
 import (
-	"github.com/ricochet2200/gun/msg"
 	"log"
 	"net"
 	"strconv"
+
+	"github.com/ricochet2200/gun/msg"
 )
 
 var Realm string = "STUN Server"
 
 type Authenticator interface {
-	Password(/*username*/ string) (/*password*/string, /*ok*/bool)
+	Password( /*username*/ string) ( /*password*/ string /*ok*/, bool)
 }
 
 type Server struct {
-	port int
+	port  int
 	conns chan *Connection
-	auth Authenticator
+	auth  Authenticator
 	realm *msg.RealmAttr
 }
 
 func NewServer(port int, c chan *Connection, a Authenticator) *Server {
-	
+
 	r, e := msg.NewRealm(Realm)
 	if e != nil {
 		panic(e)
@@ -31,7 +32,7 @@ func NewServer(port int, c chan *Connection, a Authenticator) *Server {
 
 func (this *Server) Start() error {
 
-	log.Println("Listening on ", ":"+strconv.Itoa(this.port) )
+	log.Println("Listening on ", ":"+strconv.Itoa(this.port))
 	ln, err := net.Listen("tcp", ":"+strconv.Itoa(this.port))
 	if err != nil {
 		log.Fatal(err)
@@ -39,7 +40,7 @@ func (this *Server) Start() error {
 		// TODO: handle error
 	}
 	for {
-		conn, err := ln.Accept()
+		conn, err := ln.Accept() //accept waits for the next call and returns a generic Conn.
 		if err != nil {
 			log.Println(err)
 			continue
@@ -68,15 +69,15 @@ func (this *Server) handleConnection(out net.Conn, ip net.IP, port int) {
 
 		if this.auth == nil {
 			log.Println("Binding to address:", ip, port)
- 			res := msg.NewResponse(msg.Success, req)
+			res := msg.NewResponse(msg.Success, req)
 			xorAddr := msg.NewXORAddress(ip, port, res.Header())
 			res.AddAttribute(xorAddr)
-			
+
 			out.Write(res.EncodeMessage())
 
 			this.conns <- conn
 			return
-		} 
+		}
 
 		if this.Validate(conn) {
 			conn.Write(msg.NewResponse(msg.Success, req))
@@ -94,7 +95,7 @@ func (this *Server) handleConnection(out net.Conn, ip net.IP, port int) {
 func (this *Server) Validate(conn *Connection) bool {
 
 	req := conn.Req
-	
+
 	// Request attributes
 	integrity, iErr := req.Attribute(msg.MessageIntegrity)
 	user, uErr := req.Attribute(msg.Username)
@@ -113,14 +114,14 @@ func (this *Server) Validate(conn *Connection) bool {
 			conn.HasAuth = true
 		}
 	}
-	
+
 	if iErr != nil {
 		// Reject request
 		e, _ := msg.NewErrorAttr(msg.Unauthorized, "Unauthorized")
 		res.AddAttribute(e)
 		res.AddAttribute(this.realm)
 		res.AddAttribute(n)
-		
+
 		log.Println("No Integrity")
 		conn.Write(res)
 		return false
@@ -129,7 +130,7 @@ func (this *Server) Validate(conn *Connection) bool {
 		// Reject request
 		e, _ := msg.NewErrorAttr(msg.BadRequest, "Bad Request")
 		res.AddAttribute(e)
-		
+
 		log.Println("Missing user, nonce, or realm")
 		conn.Write(res)
 		return false
@@ -141,9 +142,9 @@ func (this *Server) Validate(conn *Connection) bool {
 		res.AddAttribute(e)
 		res.AddAttribute(this.realm)
 		res.AddAttribute(n)
-		
+
 		log.Println("User Not Found")
-		conn.Write(res)	
+		conn.Write(res)
 		return false
 
 	} else if !msg.ValidNonce(nonce) {
@@ -152,18 +153,18 @@ func (this *Server) Validate(conn *Connection) bool {
 		res.AddAttribute(e)
 		res.AddAttribute(this.realm)
 		res.AddAttribute(n)
-		
+
 		log.Println("Invalid Nonce")
 		conn.Write(res)
 		return false
-		
+
 	} else if !msg.ToIntegrity(integrity).Valid(conn.User, conn.Passwd, Realm, req) {
 
 		e, _ := msg.NewErrorAttr(msg.Unauthorized, "Unauthorized")
 		res.AddAttribute(e)
 		res.AddAttribute(this.realm)
 		res.AddAttribute(n)
-		
+
 		log.Println("Invalid integrity")
 		conn.Write(res)
 		return false
